@@ -777,6 +777,165 @@ static int TestNonDynamicJointDisable( void )
 	return 0;
 }
 
+// Soft limit bands and elliptical cones.
+
+// How a spin into a limit ended: the furthest the joint went, and the largest drop in the body's angular
+// speed over one step (how hard it was stopped).
+typedef struct SpinResult
+{
+	float most;
+	float hardestStop;
+} SpinResult;
+
+static SpinResult SpinInto( JointFixture* f, b3JointId jointId, b3Vec3 angularVelocity, float ( *angle )( b3JointId ) )
+{
+	b3Body_SetAngularVelocity( f->bodyId, angularVelocity );
+	SpinResult r = { 0.0f, 0.0f };
+	float speed = b3Length( angularVelocity );
+	for ( int i = 0; i < 120; ++i )
+	{
+		b3World_Step( f->worldId, 1.0f / 60.0f, 4 );
+		r.most = b3MaxFloat( r.most, b3AbsFloat( angle( jointId ) ) );
+		float now = b3Length( b3Body_GetAngularVelocity( f->bodyId ) );
+		r.hardestStop = b3MaxFloat( r.hardestStop, speed - now );
+		speed = now;
+	}
+	return r;
+}
+
+static float RevoluteAngle( b3JointId jointId )
+{
+	return b3RevoluteJoint_GetAngle( jointId );
+}
+
+static float TwistAngle( b3JointId jointId )
+{
+	return b3SphericalJoint_GetTwistAngle( jointId );
+}
+
+static float SwingAngle( b3JointId jointId )
+{
+	return b3SphericalJoint_GetConeAngle( jointId );
+}
+
+// A hinge spun into its limit stops dead there; with a soft band it eases to a stop inside the band.
+static int TestRevoluteSoftLimit( void )
+{
+	SpinResult results[2];
+	for ( int soft = 0; soft < 2; ++soft )
+	{
+		JointFixture f = CreateJointFixture();
+		b3RevoluteJointDef def = b3DefaultRevoluteJointDef();
+		SetCommonFrames( &def.base, &f );
+		def.enableLimit = true;
+		def.lowerAngle = -0.6f;
+		def.upperAngle = 0.6f;
+		if ( soft )
+		{
+			def.limitBand = 0.4f;
+			def.limitHertz = 2.0f;
+			def.limitDampingRatio = 0.7f;
+		}
+		b3JointId jointId = b3CreateRevoluteJoint( f.worldId, &def );
+		results[soft] = SpinInto( &f, jointId, (b3Vec3){ 0.0f, 0.0f, 3.0f }, RevoluteAngle );
+
+		if ( soft )
+		{
+			ENSURE( b3RevoluteJoint_GetLimitBand( jointId ) == 0.4f );
+			b3RevoluteJoint_SetSoftLimit( jointId, 0.2f, 3.0f, 0.5f );
+			ENSURE( b3RevoluteJoint_GetLimitBand( jointId ) == 0.2f );
+			ENSURE( b3RevoluteJoint_GetLimitHertz( jointId ) == 3.0f );
+			ENSURE( b3RevoluteJoint_GetLimitDampingRatio( jointId ) == 0.5f );
+		}
+		b3DestroyWorld( f.worldId );
+	}
+
+	ENSURE( results[0].most > 0.55f && results[0].most < 0.63f );
+	ENSURE( results[1].most < 0.55f );
+	ENSURE( results[1].hardestStop < 0.5f * results[0].hardestStop );
+	return 0;
+}
+
+// The same for a ball joint's twist.
+static int TestSphericalSoftTwist( void )
+{
+	SpinResult results[2];
+	for ( int soft = 0; soft < 2; ++soft )
+	{
+		JointFixture f = CreateJointFixture();
+		b3SphericalJointDef def = b3DefaultSphericalJointDef();
+		SetCommonFrames( &def.base, &f );
+		def.enableTwistLimit = true;
+		def.lowerTwistAngle = -0.6f;
+		def.upperTwistAngle = 0.6f;
+		if ( soft )
+		{
+			def.limitBand = 0.4f;
+			def.limitHertz = 2.0f;
+			def.limitDampingRatio = 0.7f;
+		}
+		b3JointId jointId = b3CreateSphericalJoint( f.worldId, &def );
+		results[soft] = SpinInto( &f, jointId, (b3Vec3){ 0.0f, 0.0f, 3.0f }, TwistAngle );
+		b3DestroyWorld( f.worldId );
+	}
+
+	ENSURE( results[0].most > 0.55f && results[0].most < 0.63f );
+	ENSURE( results[1].most < 0.55f );
+	ENSURE( results[1].hardestStop < 0.5f * results[0].hardestStop );
+	return 0;
+}
+
+// An elliptical cone lets the joint swing further toward the frameA x-axis than toward its y-axis, and the
+// soft band eases it to a stop inside either edge.
+static int TestSphericalEllipticalCone( void )
+{
+	// spin about x tilts the z-axis toward y; spin about y tilts it toward x
+	const b3Vec3 spins[2] = { { 3.0f, 0.0f, 0.0f }, { 0.0f, 3.0f, 0.0f } };
+	SpinResult results[2][2];
+	for ( int soft = 0; soft < 2; ++soft )
+	{
+		for ( int axis = 0; axis < 2; ++axis )
+		{
+			JointFixture f = CreateJointFixture();
+			b3SphericalJointDef def = b3DefaultSphericalJointDef();
+			SetCommonFrames( &def.base, &f );
+			def.enableConeLimit = true;
+			def.coneAngle = 0.8f;
+			def.coneAngleY = 0.3f;
+			if ( soft )
+			{
+				def.limitBand = 0.25f;
+				def.limitHertz = 2.0f;
+				def.limitDampingRatio = 0.7f;
+			}
+			b3JointId jointId = b3CreateSphericalJoint( f.worldId, &def );
+			results[soft][axis] = SpinInto( &f, jointId, spins[axis], SwingAngle );
+
+			ENSURE( b3SphericalJoint_GetConeLimit( jointId ) == 0.8f );
+			ENSURE( b3SphericalJoint_GetConeLimitY( jointId ) == 0.3f );
+			b3SphericalJoint_SetConeLimit( jointId, 0.5f );
+			ENSURE( b3SphericalJoint_GetConeLimitY( jointId ) == 0.0f );
+			b3SphericalJoint_SetEllipticalConeLimit( jointId, 0.6f, 0.4f );
+			ENSURE( b3SphericalJoint_GetConeLimit( jointId ) == 0.6f );
+			ENSURE( b3SphericalJoint_GetConeLimitY( jointId ) == 0.4f );
+			b3SphericalJoint_SetSoftLimit( jointId, 0.1f, 3.0f, 0.5f );
+			ENSURE( b3SphericalJoint_GetLimitBand( jointId ) == 0.1f );
+			ENSURE( b3SphericalJoint_GetLimitHertz( jointId ) == 3.0f );
+			ENSURE( b3SphericalJoint_GetLimitDampingRatio( jointId ) == 0.5f );
+			b3DestroyWorld( f.worldId );
+		}
+	}
+
+	// hard: toward y stops at 0.3, toward x at 0.8
+	ENSURE( results[0][0].most > 0.25f && results[0][0].most < 0.33f );
+	ENSURE( results[0][1].most > 0.75f && results[0][1].most < 0.83f );
+	// soft: inside each edge, and gentler
+	ENSURE( results[1][0].most < 0.3f );
+	ENSURE( results[1][1].most > 0.5f && results[1][1].most < 0.8f );
+	ENSURE( results[1][1].hardestStop < 0.5f * results[0][1].hardestStop );
+	return 0;
+}
+
 int JointTest( void )
 {
 	RUN_SUBTEST( TestParallelJoint );
@@ -792,6 +951,9 @@ int JointTest( void )
 	RUN_SUBTEST( TestWheelJoint );
 	RUN_SUBTEST( TestCreateJointClearsContacts );
 	RUN_SUBTEST( TestNonDynamicJointDisable );
+	RUN_SUBTEST( TestRevoluteSoftLimit );
+	RUN_SUBTEST( TestSphericalSoftTwist );
+	RUN_SUBTEST( TestSphericalEllipticalCone );
 
 	return 0;
 }

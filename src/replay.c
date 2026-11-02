@@ -589,6 +589,9 @@ b3RevoluteJointDef b3RecR_REVOLUTEJOINTDEF( b3RecReader* rdr )
 	def.enableLimit = b3RecR_BOOL( rdr );
 	def.lowerAngle = b3RecR_F32( rdr );
 	def.upperAngle = b3RecR_F32( rdr );
+	def.limitBand = b3RecR_F32( rdr );
+	def.limitHertz = b3RecR_F32( rdr );
+	def.limitDampingRatio = b3RecR_F32( rdr );
 	def.enableMotor = b3RecR_BOOL( rdr );
 	def.maxMotorTorque = b3RecR_F32( rdr );
 	def.motorSpeed = b3RecR_F32( rdr );
@@ -605,9 +608,13 @@ b3SphericalJointDef b3RecR_SPHERICALJOINTDEF( b3RecReader* rdr )
 	def.targetRotation = b3RecR_QUAT( rdr );
 	def.enableConeLimit = b3RecR_BOOL( rdr );
 	def.coneAngle = b3RecR_F32( rdr );
+	def.coneAngleY = b3RecR_F32( rdr );
 	def.enableTwistLimit = b3RecR_BOOL( rdr );
 	def.lowerTwistAngle = b3RecR_F32( rdr );
 	def.upperTwistAngle = b3RecR_F32( rdr );
+	def.limitBand = b3RecR_F32( rdr );
+	def.limitHertz = b3RecR_F32( rdr );
+	def.limitDampingRatio = b3RecR_F32( rdr );
 	def.enableMotor = b3RecR_BOOL( rdr );
 	def.maxMotorTorque = b3RecR_F32( rdr );
 	def.motorVelocity = b3RecR_VEC3( rdr );
@@ -1610,6 +1617,22 @@ static void b3RecDispatch_SphericalJointSetMotorVelocity( const b3RecArgs_Spheri
 static void b3RecDispatch_SphericalJointSetMaxMotorTorque( const b3RecArgs_SphericalJointSetMaxMotorTorque* a, b3RecReader* rdr )
 {
 	b3SphericalJoint_SetMaxMotorTorque( b3RecMakeJointId( rdr, a->joint ), a->torque );
+}
+
+static void b3RecDispatch_RevoluteJointSetSoftLimit( const b3RecArgs_RevoluteJointSetSoftLimit* a, b3RecReader* rdr )
+{
+	b3RevoluteJoint_SetSoftLimit( b3RecMakeJointId( rdr, a->joint ), a->band, a->hertz, a->dampingRatio );
+}
+
+static void b3RecDispatch_SphericalJointSetSoftLimit( const b3RecArgs_SphericalJointSetSoftLimit* a, b3RecReader* rdr )
+{
+	b3SphericalJoint_SetSoftLimit( b3RecMakeJointId( rdr, a->joint ), a->band, a->hertz, a->dampingRatio );
+}
+
+static void b3RecDispatch_SphericalJointSetEllipticalConeLimit( const b3RecArgs_SphericalJointSetEllipticalConeLimit* a,
+																 b3RecReader* rdr )
+{
+	b3SphericalJoint_SetEllipticalConeLimit( b3RecMakeJointId( rdr, a->joint ), a->angleX, a->angleY );
 }
 
 static void b3RecDispatch_WeldJointSetLinearHertz( const b3RecArgs_WeldJointSetLinearHertz* a, b3RecReader* rdr )

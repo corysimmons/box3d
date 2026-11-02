@@ -212,6 +212,8 @@ typedef struct b3RevoluteJoint
 	float motorImpulse;
 	float lowerImpulse;
 	float upperImpulse;
+	float lowerSoftImpulse;
+	float upperSoftImpulse;
 	float hertz;
 	float dampingRatio;
 	float maxMotorTorque;
@@ -219,6 +221,9 @@ typedef struct b3RevoluteJoint
 	float targetAngle;
 	float lowerAngle;
 	float upperAngle;
+	float limitBand;
+	float limitHertz;
+	float limitDampingRatio;
 
 	int indexA;
 	int indexB;
@@ -231,6 +236,7 @@ typedef struct b3RevoluteJoint
 	float deltaAngle;
 	float axialMass;
 	b3Softness springSoftness;
+	b3Softness limitSoftness;
 
 	bool enableSpring;
 	bool enableMotor;
@@ -245,6 +251,9 @@ typedef struct b3SphericalJoint
 	float lowerTwistImpulse;
 	float upperTwistImpulse;
 	float swingImpulse;
+	float lowerTwistSoftImpulse;
+	float upperTwistSoftImpulse;
+	float swingSoftImpulse;
 	float hertz;
 	float dampingRatio;
 	float maxMotorTorque;
@@ -252,6 +261,10 @@ typedef struct b3SphericalJoint
 	float lowerTwistAngle;
 	float upperTwistAngle;
 	float coneAngle;
+	float coneAngleY;
+	float limitBand;
+	float limitHertz;
+	float limitDampingRatio;
 	b3Quat targetRotation;
 
 	int indexA;
@@ -266,6 +279,7 @@ typedef struct b3SphericalJoint
 	float swingMass;
 	float twistMass;
 	b3Softness springSoftness;
+	b3Softness limitSoftness;
 
 	bool enableSpring;
 	bool enableMotor;
@@ -424,6 +438,7 @@ void b3PrepareParallelJoint( b3JointSim* base, b3StepContext* context );
 void b3PreparePrismaticJoint( b3JointSim* base, b3StepContext* context );
 void b3PrepareRevoluteJoint( b3JointSim* base, b3StepContext* context );
 void b3PrepareSphericalJoint( b3JointSim* base, b3StepContext* context );
+float b3GetEffectiveConeAngle( const b3SphericalJoint* joint, b3Quat relQ );
 void b3PrepareWeldJoint( b3JointSim* base, b3StepContext* context );
 void b3PrepareWheelJoint( b3JointSim* base, b3StepContext* context );
 

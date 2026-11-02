@@ -13,6 +13,34 @@
 // needed for dll export
 #include "box3d/box3d.h"
 
+#include <float.h>
+
+// The cone's edge in the direction the joint swings now: coneAngle for a round cone; otherwise on the
+// ellipse whose semi-axes are coneAngle (tilting toward the frameA x-axis) and coneAngleY (toward y).
+float b3GetEffectiveConeAngle( const b3SphericalJoint* joint, b3Quat relQ )
+{
+	if ( joint->coneAngleY <= 0.0f )
+	{
+		return joint->coneAngle;
+	}
+
+	// The swing part of relQ (its twist about z taken out), up to scale: its axis lies in the frameA
+	// xy-plane and the frameB z-axis tilts toward ( sy, -sx ). Polarity cancels.
+	float sx = relQ.s * relQ.v.x - relQ.v.y * relQ.v.z;
+	float sy = relQ.s * relQ.v.y + relQ.v.x * relQ.v.z;
+	float lengthSquared = sx * sx + sy * sy;
+	float ax = b3MaxFloat( joint->coneAngle, FLT_EPSILON );
+	float ay = b3MaxFloat( joint->coneAngleY, FLT_EPSILON );
+	if ( lengthSquared < FLT_EPSILON * FLT_EPSILON )
+	{
+		return b3MinFloat( ax, ay );
+	}
+
+	float tx = sy / ax;
+	float ty = sx / ay;
+	return sqrtf( lengthSquared / ( tx * tx + ty * ty ) );
+}
+
 void b3SphericalJoint_EnableConeLimit( b3JointId jointId, bool enableLimit )
 {
 	b3World* world = b3GetWorld( jointId.world0 );
@@ -21,6 +49,7 @@ void b3SphericalJoint_EnableConeLimit( b3JointId jointId, bool enableLimit )
 	if ( enableLimit != base->sphericalJoint.enableConeLimit )
 	{
 		base->sphericalJoint.swingImpulse = 0.0f;
+		base->sphericalJoint.swingSoftImpulse = 0.0f;
 	}
 	base->sphericalJoint.enableConeLimit = enableLimit;
 }
@@ -44,6 +73,24 @@ void b3SphericalJoint_SetConeLimit( b3JointId jointId, float angleRadians )
 	B3_REC( world, SphericalJointSetConeLimit, jointId, angleRadians );
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
 	base->sphericalJoint.coneAngle = angleRadians;
+	base->sphericalJoint.coneAngleY = 0.0f;
+}
+
+void b3SphericalJoint_SetEllipticalConeLimit( b3JointId jointId, float angleXRadians, float angleYRadians )
+{
+	B3_ASSERT( b3IsValidFloat( angleXRadians ) && 0 <= angleXRadians && angleXRadians <= 0.5f * B3_PI );
+	B3_ASSERT( b3IsValidFloat( angleYRadians ) && 0 <= angleYRadians && angleYRadians <= 0.5f * B3_PI );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, SphericalJointSetEllipticalConeLimit, jointId, angleXRadians, angleYRadians );
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
+	base->sphericalJoint.coneAngle = angleXRadians;
+	base->sphericalJoint.coneAngleY = angleYRadians;
+}
+
+float b3SphericalJoint_GetConeLimitY( b3JointId jointId )
+{
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
+	return base->sphericalJoint.coneAngleY;
 }
 
 float b3SphericalJoint_GetConeAngle( b3JointId jointId )
@@ -76,6 +123,8 @@ void b3SphericalJoint_EnableTwistLimit( b3JointId jointId, bool enableLimit )
 	{
 		base->sphericalJoint.lowerTwistImpulse = 0.0f;
 		base->sphericalJoint.upperTwistImpulse = 0.0f;
+		base->sphericalJoint.lowerTwistSoftImpulse = 0.0f;
+		base->sphericalJoint.upperTwistSoftImpulse = 0.0f;
 	}
 	base->sphericalJoint.enableTwistLimit = enableLimit;
 }
@@ -110,6 +159,44 @@ void b3SphericalJoint_SetTwistLimits( b3JointId jointId, float lowerLimitRadians
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
 	base->sphericalJoint.lowerTwistAngle = b3ClampFloat( lowerAngle, -0.99f * B3_PI, 0.99f * B3_PI );
 	base->sphericalJoint.upperTwistAngle = b3ClampFloat( upperAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+}
+
+void b3SphericalJoint_SetSoftLimit( b3JointId jointId, float bandRadians, float hertz, float dampingRatio )
+{
+	B3_ASSERT( b3IsValidFloat( bandRadians ) && bandRadians >= 0.0f );
+	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, SphericalJointSetSoftLimit, jointId, bandRadians, hertz, dampingRatio );
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
+	b3SphericalJoint* joint = &base->sphericalJoint;
+	if ( bandRadians == 0.0f )
+	{
+		joint->lowerTwistSoftImpulse = 0.0f;
+		joint->upperTwistSoftImpulse = 0.0f;
+		joint->swingSoftImpulse = 0.0f;
+	}
+	joint->limitBand = bandRadians;
+	joint->limitHertz = hertz;
+	joint->limitDampingRatio = dampingRatio;
+}
+
+float b3SphericalJoint_GetLimitBand( b3JointId jointId )
+{
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
+	return base->sphericalJoint.limitBand;
+}
+
+float b3SphericalJoint_GetLimitHertz( b3JointId jointId )
+{
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
+	return base->sphericalJoint.limitHertz;
+}
+
+float b3SphericalJoint_GetLimitDampingRatio( b3JointId jointId )
+{
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
+	return base->sphericalJoint.limitDampingRatio;
 }
 
 float b3SphericalJoint_GetTwistAngle( b3JointId jointId )
@@ -271,8 +358,11 @@ b3Vec3 b3GetSphericalJointTorque( b3World* world, b3JointSim* base )
 
 	b3SphericalJoint* joint = &base->sphericalJoint;
 	b3Vec3 impulse = b3Add( joint->springImpulse, joint->motorImpulse );
-	impulse = b3MulAdd( impulse, joint->lowerTwistImpulse - joint->upperTwistImpulse, twistAxis );
-	impulse = b3MulAdd( impulse, joint->swingImpulse, swingAxis );
+	impulse = b3MulAdd( impulse,
+						joint->lowerTwistImpulse - joint->upperTwistImpulse + joint->lowerTwistSoftImpulse -
+							joint->upperTwistSoftImpulse,
+						twistAxis );
+	impulse = b3MulAdd( impulse, joint->swingImpulse + joint->swingSoftImpulse, swingAxis );
 	b3Vec3 torque = b3MulSV( world->inv_h, impulse );
 	return torque;
 }
@@ -369,6 +459,7 @@ void b3PrepareSphericalJoint( b3JointSim* base, b3StepContext* context )
 	}
 
 	joint->springSoftness = b3MakeSoft( joint->hertz, joint->dampingRatio, context->h );
+	joint->limitSoftness = b3MakeSoft( joint->limitHertz, joint->limitDampingRatio, context->h );
 
 	if ( context->enableWarmStarting == false )
 	{
@@ -378,6 +469,9 @@ void b3PrepareSphericalJoint( b3JointSim* base, b3StepContext* context )
 		joint->swingImpulse = 0.0f;
 		joint->lowerTwistImpulse = 0.0f;
 		joint->upperTwistImpulse = 0.0f;
+		joint->swingSoftImpulse = 0.0f;
+		joint->lowerTwistSoftImpulse = 0.0f;
+		joint->upperTwistSoftImpulse = 0.0f;
 	}
 }
 
@@ -407,8 +501,11 @@ void b3WarmStartSphericalJoint( b3JointSim* base, b3StepContext* context )
 	b3Vec3 rB = b3RotateVector( stateB->deltaRotation, joint->frameB.p );
 
 	b3Vec3 angularImpulse = b3Add( joint->springImpulse, joint->motorImpulse );
-	angularImpulse = b3MulSub( angularImpulse, joint->swingImpulse, joint->swingAxis );
-	angularImpulse = b3MulAdd( angularImpulse, joint->lowerTwistImpulse - joint->upperTwistImpulse, joint->twistJacobian );
+	angularImpulse = b3MulSub( angularImpulse, joint->swingImpulse + joint->swingSoftImpulse, joint->swingAxis );
+	angularImpulse = b3MulAdd( angularImpulse,
+							   joint->lowerTwistImpulse - joint->upperTwistImpulse + joint->lowerTwistSoftImpulse -
+								   joint->upperTwistSoftImpulse,
+							   joint->twistJacobian );
 
 	vA = b3MulSub( vA, mA, joint->linearImpulse );
 	wA = b3Sub( wA, b3MulMV( iA, b3Add( b3Cross( rA, joint->linearImpulse ), angularImpulse ) ) );
@@ -499,6 +596,80 @@ void b3SolveSphericalJoint( b3JointSim* base, b3StepContext* context, bool useBi
 			angularImpulse = b3Add( angularImpulse, lambda );
 		}
 
+		// Soft bands: inside the cone's edge and the twist limits a damped spring eases the joint to a stop
+		// before it reaches them, the way a body's joints slow near the ends of their range. A band only
+		// pushes back toward the range and lets go outside it; the hard limits below still hold.
+		if ( joint->limitBand > 0.0f && ( joint->enableTwistLimit || joint->enableConeLimit ) )
+		{
+			b3Softness soft = joint->limitSoftness;
+
+			float twistBand = b3MinFloat( joint->limitBand, 0.5f * ( joint->upperTwistAngle - joint->lowerTwistAngle ) );
+			if ( joint->enableTwistLimit && twistBand > 0.0f )
+			{
+				float twistAngle = b3GetTwistAngle( relQ );
+				b3Vec3 twistJacobian = joint->twistJacobian;
+				b3Vec3 twistResponse = b3MulMV( invInertiaSum, twistJacobian );
+
+				// Lower band
+				{
+					float c = twistAngle - ( joint->lowerTwistAngle + twistBand );
+					float oldImpulse = joint->lowerTwistSoftImpulse;
+					float deltaImpulse = -oldImpulse;
+					if ( c < 0.0f )
+					{
+						float cdotC = b3Dot( cdot, twistJacobian );
+						deltaImpulse = b3MaxFloat(
+							-soft.massScale * joint->twistMass * ( cdotC + soft.biasRate * c ) - soft.impulseScale * oldImpulse, -oldImpulse );
+					}
+					joint->lowerTwistSoftImpulse = oldImpulse + deltaImpulse;
+					cdot = b3MulAdd( cdot, deltaImpulse, twistResponse );
+					angularImpulse = b3MulAdd( angularImpulse, deltaImpulse, twistJacobian );
+				}
+
+				// Upper band
+				{
+					float c = ( joint->upperTwistAngle - twistBand ) - twistAngle;
+					float oldImpulse = joint->upperTwistSoftImpulse;
+					float deltaImpulse = -oldImpulse;
+					if ( c < 0.0f )
+					{
+						float cdotC = -b3Dot( cdot, twistJacobian );
+						deltaImpulse = b3MaxFloat(
+							-soft.massScale * joint->twistMass * ( cdotC + soft.biasRate * c ) - soft.impulseScale * oldImpulse, -oldImpulse );
+					}
+					joint->upperTwistSoftImpulse = oldImpulse + deltaImpulse;
+					// sign flipped on applied impulse
+					cdot = b3MulSub( cdot, deltaImpulse, twistResponse );
+					angularImpulse = b3MulSub( angularImpulse, deltaImpulse, twistJacobian );
+				}
+			}
+
+			if ( joint->enableConeLimit )
+			{
+				float swingAngle = b3GetSwingAngle( relQ );
+				float coneAngle = b3GetEffectiveConeAngle( joint, relQ );
+				float coneBand = b3MinFloat( joint->limitBand, coneAngle );
+				b3Vec3 swingAxis = joint->swingAxis;
+
+				// Cone band
+				{
+					float c = ( coneAngle - coneBand ) - swingAngle;
+					float oldImpulse = joint->swingSoftImpulse;
+					float deltaImpulse = -oldImpulse;
+					if ( c < 0.0f )
+					{
+						float cdotC = -b3Dot( cdot, swingAxis );
+						deltaImpulse = b3MaxFloat(
+							-soft.massScale * joint->swingMass * ( cdotC + soft.biasRate * c ) - soft.impulseScale * oldImpulse, -oldImpulse );
+					}
+					joint->swingSoftImpulse = oldImpulse + deltaImpulse;
+					// sign flipped on applied impulse
+					cdot = b3MulSub( cdot, deltaImpulse, b3MulMV( invInertiaSum, swingAxis ) );
+					angularImpulse = b3MulSub( angularImpulse, deltaImpulse, swingAxis );
+				}
+			}
+		}
+
 		if ( joint->enableTwistLimit )
 		{
 			float twistAngle = b3GetTwistAngle( relQ );
@@ -579,7 +750,7 @@ void b3SolveSphericalJoint( b3JointSim* base, b3StepContext* context, bool useBi
 
 			b3Vec3 swingAxis = joint->swingAxis;
 
-			float c = joint->coneAngle - swingAngle;
+			float c = b3GetEffectiveConeAngle( joint, relQ ) - swingAngle;
 			float bias = 0.0f;
 			float massScale = 1.0f;
 			float impulseScale = 0.0f;
@@ -725,16 +896,21 @@ void b3DrawSphericalJoint( b3DebugDraw* draw, b3JointSim* base, b3WorldTransform
 	if ( joint->enableConeLimit )
 	{
 		const float radius = 0.1f * scale;
-		float coneRadius = radius * b3Sin( joint->coneAngle );
-		float coneHeight = radius * b3Cos( joint->coneAngle );
+		float ax = b3MaxFloat( joint->coneAngle, FLT_EPSILON );
+		float ay = joint->coneAngleY > 0.0f ? joint->coneAngleY : ax;
 
 		for ( int index = 0; index < kSliceCount; ++index )
 		{
 			float phi1 = 2.0f * ( index + 0 ) / kSliceCount * B3_PI;
 			float phi2 = 2.0f * ( index + 1 ) / kSliceCount * B3_PI;
 
-			b3Vec3 vertex1 = { coneRadius * b3Cos( phi1 ), coneRadius * b3Sin( phi1 ), coneHeight };
-			b3Vec3 vertex2 = { coneRadius * b3Cos( phi2 ), coneRadius * b3Sin( phi2 ), coneHeight };
+			// the cone's edge tilting toward ( cos phi, sin phi ): on the ellipse of semi-axes ax, ay
+			float c1 = b3Cos( phi1 ), s1 = b3Sin( phi1 ), c2 = b3Cos( phi2 ), s2 = b3Sin( phi2 );
+			float edge1 = 1.0f / sqrtf( ( c1 / ax ) * ( c1 / ax ) + ( s1 / ay ) * ( s1 / ay ) );
+			float edge2 = 1.0f / sqrtf( ( c2 / ax ) * ( c2 / ax ) + ( s2 / ay ) * ( s2 / ay ) );
+
+			b3Vec3 vertex1 = { radius * b3Sin( edge1 ) * c1, radius * b3Sin( edge1 ) * s1, radius * b3Cos( edge1 ) };
+			b3Vec3 vertex2 = { radius * b3Sin( edge2 ) * c2, radius * b3Sin( edge2 ) * s2, radius * b3Cos( edge2 ) };
 
 			draw->DrawSegmentFcn( frameA.p, b3TransformWorldPoint( frameA, vertex1 ), b3_colorCyan, draw->context );
 			draw->DrawSegmentFcn( b3TransformWorldPoint( frameA, vertex1 ), b3TransformWorldPoint( frameA, vertex2 ), b3_colorCyan,

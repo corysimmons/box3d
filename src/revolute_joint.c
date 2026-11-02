@@ -49,6 +49,8 @@ void b3RevoluteJoint_EnableLimit( b3JointId jointId, bool enableLimit )
 	{
 		base->revoluteJoint.lowerImpulse = 0.0f;
 		base->revoluteJoint.upperImpulse = 0.0f;
+		base->revoluteJoint.lowerSoftImpulse = 0.0f;
+		base->revoluteJoint.upperSoftImpulse = 0.0f;
 	}
 	base->revoluteJoint.enableLimit = enableLimit;
 }
@@ -83,6 +85,43 @@ void b3RevoluteJoint_SetLimits( b3JointId jointId, float lowerLimitRadians, floa
 	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
 	base->revoluteJoint.lowerAngle = b3ClampFloat( lowerAngle, -0.99f * B3_PI, 0.99f * B3_PI );
 	base->revoluteJoint.upperAngle = b3ClampFloat( upperAngle, -0.99f * B3_PI, 0.99f * B3_PI );
+}
+
+void b3RevoluteJoint_SetSoftLimit( b3JointId jointId, float bandRadians, float hertz, float dampingRatio )
+{
+	B3_ASSERT( b3IsValidFloat( bandRadians ) && bandRadians >= 0.0f );
+	B3_ASSERT( b3IsValidFloat( hertz ) && hertz >= 0.0f );
+	B3_ASSERT( b3IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+	b3World* world = b3GetWorld( jointId.world0 );
+	B3_REC( world, RevoluteJointSetSoftLimit, jointId, bandRadians, hertz, dampingRatio );
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
+	b3RevoluteJoint* joint = &base->revoluteJoint;
+	if ( bandRadians == 0.0f )
+	{
+		joint->lowerSoftImpulse = 0.0f;
+		joint->upperSoftImpulse = 0.0f;
+	}
+	joint->limitBand = bandRadians;
+	joint->limitHertz = hertz;
+	joint->limitDampingRatio = dampingRatio;
+}
+
+float b3RevoluteJoint_GetLimitBand( b3JointId jointId )
+{
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
+	return base->revoluteJoint.limitBand;
+}
+
+float b3RevoluteJoint_GetLimitHertz( b3JointId jointId )
+{
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
+	return base->revoluteJoint.limitHertz;
+}
+
+float b3RevoluteJoint_GetLimitDampingRatio( b3JointId jointId )
+{
+	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
+	return base->revoluteJoint.limitDampingRatio;
 }
 
 float b3RevoluteJoint_GetAngle( b3JointId jointId )
@@ -245,14 +284,14 @@ b3Vec3 b3GetRevoluteJointTorque( b3World* world, b3JointSim* base )
 	joint->perpAxisY = b3MulSV(
 		0.5f, b3RotateVector( joint->frameA.q, b3Add( b3MulSV( relQ.s, b3Vec3_axisY ), b3Cross( relQ.v, b3Vec3_axisY ) ) ) );
 
-	float axialImpulse = joint->springImpulse + joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse;
+	float axialImpulse = joint->springImpulse + joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse + joint->lowerSoftImpulse - joint->upperSoftImpulse;
 	b3Vec3 angularImpulse =
 		b3Add( b3MulSV( joint->perpImpulse.x, joint->perpAxisX ), b3MulSV( joint->perpImpulse.y, joint->perpAxisY ) );
 	angularImpulse = b3MulAdd( angularImpulse, axialImpulse, joint->rotationAxisZ );
 
 	// todo add pivot torque
 	b3Vec3 impulse = b3MulAdd( angularImpulse,
-							   joint->springImpulse + joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse, axis );
+							   joint->springImpulse + joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse + joint->lowerSoftImpulse - joint->upperSoftImpulse, axis );
 	b3Vec3 torque = b3MulSV( world->inv_h, impulse );
 	return torque;
 }
@@ -319,11 +358,14 @@ void b3PrepareRevoluteJoint( b3JointSim* base, b3StepContext* context )
 	}
 
 	joint->springSoftness = b3MakeSoft( joint->hertz, joint->dampingRatio, context->h );
+	joint->limitSoftness = b3MakeSoft( joint->limitHertz, joint->limitDampingRatio, context->h );
 
 	if ( context->enableWarmStarting == false )
 	{
 		joint->linearImpulse = b3Vec3_zero;
 		joint->perpImpulse = (b3Vec2){ 0.0f, 0.0f };
+		joint->lowerSoftImpulse = 0.0f;
+		joint->upperSoftImpulse = 0.0f;
 		joint->motorImpulse = 0.0f;
 		joint->springImpulse = 0.0f;
 		joint->lowerImpulse = 0.0f;
@@ -356,7 +398,7 @@ void b3WarmStartRevoluteJoint( b3JointSim* base, b3StepContext* context )
 	b3Vec3 rA = b3RotateVector( stateA->deltaRotation, joint->frameA.p );
 	b3Vec3 rB = b3RotateVector( stateB->deltaRotation, joint->frameB.p );
 
-	float axialImpulse = joint->springImpulse + joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse;
+	float axialImpulse = joint->springImpulse + joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse + joint->lowerSoftImpulse - joint->upperSoftImpulse;
 	b3Vec3 angularImpulse =
 		b3Add( b3MulSV( joint->perpImpulse.x, joint->perpAxisX ), b3MulSV( joint->perpImpulse.y, joint->perpAxisY ) );
 	angularImpulse = b3MulAdd( angularImpulse, axialImpulse, joint->rotationAxisZ );
@@ -456,6 +498,48 @@ void b3SolveRevoluteJoint( b3JointSim* base, b3StepContext* context, bool useBia
 			float angle = b3GetTwistAngle( relQ );
 
 			// todo does an updated twist axis help?
+
+			// Soft band: inside each limit a damped spring eases the joint to a stop before it reaches the
+			// limit, the way a body's joints slow near the ends of their range. It only pushes back toward the
+			// range and lets go outside the band; the hard limits below still hold.
+			float band = b3MinFloat( joint->limitBand, 0.5f * ( joint->upperAngle - joint->lowerAngle ) );
+			if ( band > 0.0f )
+			{
+				b3Softness soft = joint->limitSoftness;
+
+				// Lower band
+				{
+					float c = angle - ( joint->lowerAngle + band );
+					float oldImpulse = joint->lowerSoftImpulse;
+					float deltaImpulse = -oldImpulse;
+					if ( c < 0.0f )
+					{
+						float cdotC = axialCdot;
+						deltaImpulse = b3MaxFloat(
+							-soft.massScale * joint->axialMass * ( cdotC + soft.biasRate * c ) - soft.impulseScale * oldImpulse, -oldImpulse );
+					}
+					joint->lowerSoftImpulse = oldImpulse + deltaImpulse;
+					axialCdot += k * deltaImpulse;
+					axialImpulse += deltaImpulse;
+				}
+
+				// Upper band
+				{
+					float c = ( joint->upperAngle - band ) - angle;
+					float oldImpulse = joint->upperSoftImpulse;
+					float deltaImpulse = -oldImpulse;
+					if ( c < 0.0f )
+					{
+						float cdotC = -axialCdot;
+						deltaImpulse = b3MaxFloat(
+							-soft.massScale * joint->axialMass * ( cdotC + soft.biasRate * c ) - soft.impulseScale * oldImpulse, -oldImpulse );
+					}
+					joint->upperSoftImpulse = oldImpulse + deltaImpulse;
+					// sign flipped on applied impulse
+					axialCdot -= k * deltaImpulse;
+					axialImpulse -= deltaImpulse;
+				}
+			}
 
 			// Lower limit
 			{

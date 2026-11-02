@@ -226,6 +226,11 @@ B3_REC_OP( 0x88, PogoJointSetMaxTensionForce, RET_NONE, ARG( JOINTID, joint ) AR
 B3_REC_OP( 0x89, PogoJointSetMaxCompressionForce, RET_NONE, ARG( JOINTID, joint ) ARG( F32, force ) )
 B3_REC_OP( 0x8A, PogoJointSetNormal, RET_NONE, ARG( JOINTID, joint ) ARG( VEC3, normal ) )
 
+// Soft limits and elliptical cones
+B3_REC_OP( 0x8B, RevoluteJointSetSoftLimit, RET_NONE, ARG( JOINTID, joint ) ARG( F32, band ) ARG( F32, hertz ) ARG( F32, dampingRatio ) )
+B3_REC_OP( 0x8C, SphericalJointSetSoftLimit, RET_NONE, ARG( JOINTID, joint ) ARG( F32, band ) ARG( F32, hertz ) ARG( F32, dampingRatio ) )
+B3_REC_OP( 0x8D, SphericalJointSetEllipticalConeLimit, RET_NONE, ARG( JOINTID, joint ) ARG( F32, angleX ) ARG( F32, angleY ) )
+
 // Spatial queries. Inputs flow through the manifest (reader side). The hit tail and result are
 // hand-written in recording.c / recording_replay.c since they are variable length.
 B3_REC_OP( 0xE8, QueryOverlapAABB, RET_NONE, ARG( WORLDID, world ) ARG( AABB, aabb ) ARG( QUERYFILTER, filter ) )

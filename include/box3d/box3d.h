@@ -1654,6 +1654,18 @@ B3_API float b3RevoluteJoint_GetUpperLimit( b3JointId jointId );
 B3_API void b3RevoluteJoint_SetLimits( b3JointId jointId, float lowerLimitRadians,
 									   float upperLimitRadians );
 
+/// Set the revolute joint soft limit band: a damped spring inside each limit (zero band keeps them hard)
+B3_API void b3RevoluteJoint_SetSoftLimit( b3JointId jointId, float bandRadians, float hertz, float dampingRatio );
+
+/// Get the revolute joint soft limit band in radians
+B3_API float b3RevoluteJoint_GetLimitBand( b3JointId jointId );
+
+/// Get the revolute joint soft limit band stiffness in Hertz
+B3_API float b3RevoluteJoint_GetLimitHertz( b3JointId jointId );
+
+/// Get the revolute joint soft limit band damping ratio
+B3_API float b3RevoluteJoint_GetLimitDampingRatio( b3JointId jointId );
+
 /// Enable/disable a revolute joint motor
 B3_API void b3RevoluteJoint_EnableMotor( b3JointId jointId, bool enableMotor );
 
@@ -1702,6 +1714,13 @@ B3_API float b3SphericalJoint_GetConeLimit( b3JointId jointId );
 /// Set the spherical joint limits in radians
 B3_API void b3SphericalJoint_SetConeLimit( b3JointId jointId, float angleRadians );
 
+/// Set an elliptical cone limit in radians: how far the frameB z-axis may tilt toward the frameA x-axis
+/// and toward its y-axis
+B3_API void b3SphericalJoint_SetEllipticalConeLimit( b3JointId jointId, float angleXRadians, float angleYRadians );
+
+/// Get the elliptical cone limit toward the frameA y-axis in radians (zero for a round cone)
+B3_API float b3SphericalJoint_GetConeLimitY( b3JointId jointId );
+
 /// Get the spherical joint current cone angle in radians.
 B3_API float b3SphericalJoint_GetConeAngle( b3JointId jointId );
 
@@ -1720,6 +1739,19 @@ B3_API float b3SphericalJoint_GetUpperTwistLimit( b3JointId jointId );
 /// Set the spherical joint limits in radians
 B3_API void b3SphericalJoint_SetTwistLimits( b3JointId jointId, float lowerLimitRadians,
 											 float upperLimitRadians );
+
+/// Set the spherical joint soft limit band: a damped spring inside the cone and twist limits (zero band
+/// keeps them hard)
+B3_API void b3SphericalJoint_SetSoftLimit( b3JointId jointId, float bandRadians, float hertz, float dampingRatio );
+
+/// Get the spherical joint soft limit band in radians
+B3_API float b3SphericalJoint_GetLimitBand( b3JointId jointId );
+
+/// Get the spherical joint soft limit band stiffness in Hertz
+B3_API float b3SphericalJoint_GetLimitHertz( b3JointId jointId );
+
+/// Get the spherical joint soft limit band damping ratio
+B3_API float b3SphericalJoint_GetLimitDampingRatio( b3JointId jointId );
 
 /// Get the spherical joint current twist angle in radians.
 B3_API float b3SphericalJoint_GetTwistAngle( b3JointId jointId );

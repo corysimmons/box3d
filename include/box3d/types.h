@@ -961,6 +961,17 @@ typedef struct b3RevoluteJointDef
 	/// The upper angle for the joint limit in radians. Maximum of 0.99*pi radians.
 	float upperAngle;
 
+	/// Soft limit band in radians. Inside this distance from a limit a damped spring eases the joint to
+	/// a stop before it reaches the limit, the way a body's joints slow near the ends of their range.
+	/// Zero (the default) keeps the limits hard. The hard limits still hold at the limits themselves.
+	float limitBand;
+
+	/// The soft limit band's stiffness in Hertz (cycles per second). Non-negative number.
+	float limitHertz;
+
+	/// The soft limit band's damping ratio, non-dimensional. Non-negative number.
+	float limitDampingRatio;
+
 	/// A flag to enable the joint motor.
 	bool enableMotor;
 
@@ -1002,6 +1013,11 @@ typedef struct b3SphericalJointDef
 	/// The angle for the cone limit in radians. Valid range is [0, pi]
 	float coneAngle;
 
+	/// If positive the cone is elliptical: coneAngle bounds how far the frameB z-axis may tilt toward
+	/// the frameA x-axis, and this how far toward the frameA y-axis. Zero (the default) keeps the cone
+	/// round. Valid range is [0, pi/2]
+	float coneAngleY;
+
 	/// A flag to enable the twist limit. The twist is centered on the frameB z-axis.
 	bool enableTwistLimit;
 
@@ -1010,6 +1026,17 @@ typedef struct b3SphericalJointDef
 
 	/// The angle for the upper twist limit in radians. Maximum of 0.99*pi radians.
 	float upperTwistAngle;
+
+	/// Soft limit band in radians. Inside this distance from the cone or a twist limit a damped spring eases the joint to
+	/// a stop before it reaches the limit, the way a body's joints slow near the ends of their range.
+	/// Zero (the default) keeps the limits hard. The hard limits still hold at the limits themselves.
+	float limitBand;
+
+	/// The soft limit band's stiffness in Hertz (cycles per second). Non-negative number.
+	float limitHertz;
+
+	/// The soft limit band's damping ratio, non-dimensional. Non-negative number.
+	float limitDampingRatio;
 
 	/// A flag to enable the joint motor
 	bool enableMotor;
