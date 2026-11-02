@@ -2255,6 +2255,10 @@ typedef struct b3MeshDef
 	/// Compute triangle adjacency information using shared edges
 	bool identifyEdges;
 
+	/// Treat open edges (on one triangle only) as flat: for a surface that carries on in a neighboring mesh, such as
+	/// terrain cut into chunks, so nothing catches on the seams between them. Needs identifyEdges.
+	bool flatOpenEdges;
+
 	/// Input indices have clockWise winding order.
 	bool clockWiseWinding;
 } b3MeshDef;

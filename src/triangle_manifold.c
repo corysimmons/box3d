@@ -52,6 +52,34 @@ static b3TriangleFeature b3GetTriangleFeature( const b3SimplexCache* cache )
 
 void b3CollideTriangleAndSphere( b3LocalManifold* manifold, int capacity, const b3Vec3* triangleA, const b3Sphere* sphereB )
 {
+	b3CollideTriangleAndSphereWithFlags( manifold, capacity, triangleA, sphereB, 0 );
+}
+
+// Whether a closest-point feature lies only on flat edges (both of a vertex's edges for a vertex).
+static bool b3IsFlatFeature( b3TriangleFeature feature, int triangleFlags )
+{
+	switch ( feature )
+	{
+		case b3_featureEdge1:
+			return ( triangleFlags & b3_flatEdge1 ) == b3_flatEdge1;
+		case b3_featureEdge2:
+			return ( triangleFlags & b3_flatEdge2 ) == b3_flatEdge2;
+		case b3_featureEdge3:
+			return ( triangleFlags & b3_flatEdge3 ) == b3_flatEdge3;
+		case b3_featureVertex1:
+			return ( triangleFlags & ( b3_flatEdge1 | b3_flatEdge3 ) ) == ( b3_flatEdge1 | b3_flatEdge3 );
+		case b3_featureVertex2:
+			return ( triangleFlags & ( b3_flatEdge1 | b3_flatEdge2 ) ) == ( b3_flatEdge1 | b3_flatEdge2 );
+		case b3_featureVertex3:
+			return ( triangleFlags & ( b3_flatEdge2 | b3_flatEdge3 ) ) == ( b3_flatEdge2 | b3_flatEdge3 );
+		default:
+			return false;
+	}
+}
+
+void b3CollideTriangleAndSphereWithFlags( b3LocalManifold* manifold, int capacity, const b3Vec3* triangleA, const b3Sphere* sphereB,
+										  int triangleFlags )
+{
 	manifold->pointCount = 0;
 
 	if ( capacity == 0 )
@@ -88,7 +116,14 @@ void b3CollideTriangleAndSphere( b3LocalManifold* manifold, int capacity, const 
 
 	// Normal points from triangle to sphere
 	b3Vec3 normal;
-	if ( distance * distance > 1000.0f * FLT_MIN )
+	if ( closest.feature != b3_featureTriangleFace && b3IsFlatFeature( closest.feature, triangleFlags ) )
+	{
+		// On a flat edge or vertex: the face's plane, as the face beyond it (in this mesh or the next) would push.
+		normal = plane.normal;
+		distance = offset;
+		closest.point = b3MulSub( center, offset, normal );
+	}
+	else if ( distance * distance > 1000.0f * FLT_MIN )
 	{
 		normal = b3MulSV( 1.0f / distance, b3Sub( center, closest.point ) );
 	}

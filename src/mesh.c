@@ -1062,7 +1062,7 @@ struct b3TestHash
 // std::unordered_map : 4.8755 ms and 4.4780ms with FastHash function
 // verstable : 3.3968 ms with default FastHash
 // no edge identification : 1.7396 ms
-static void b3IdentifyEdges( b3MeshData* mesh )
+static void b3IdentifyEdges( b3MeshData* mesh, bool flatOpenEdges )
 {
 	b3MeshTriangle* triangles = b3GetMeshTrianglesWrite( mesh );
 	const b3Vec3* vertices = b3GetMeshVertices( mesh );
@@ -1146,6 +1146,9 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 			}
 
 			base->triangleCount += 1;
+
+			// Merged into its first: only that one stands for the edge (so an open edge is one still at a single triangle).
+			edge->triangleCount = 0;
 		}
 	}
 
@@ -1154,6 +1157,15 @@ static void b3IdentifyEdges( b3MeshData* mesh )
 	for ( int i = 0; i < edgeCount; ++i )
 	{
 		b3MeshEdge* edge = edges + i;
+		if ( edge->triangleCount == 1 && flatOpenEdges )
+		{
+			// An open edge where the surface carries on in another mesh (terrain cut into chunks): flat, so a rolling
+			// shape doesn't catch on the seam between the two.
+			int edgeFlags[3] = { b3_flatEdge1, b3_flatEdge2, b3_flatEdge3 };
+			flags[edge->triangle1] |= edgeFlags[edge->triangleEdgeIndex1];
+			continue;
+		}
+
 		if ( edge->triangleCount != 2 )
 		{
 			continue;
@@ -1812,7 +1824,7 @@ b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, 
 
 	if ( def->identifyEdges )
 	{
-		b3IdentifyEdges( mesh );
+		b3IdentifyEdges( mesh, def->flatOpenEdges );
 	}
 
 	B3_VALIDATE( b3IsNonDegenerate( mesh, minArea ) );

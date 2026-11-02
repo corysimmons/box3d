@@ -43,6 +43,13 @@ b3FeaturePair b3MakeFeaturePair( b3FeatureOwner owner1, int index1, b3FeatureOwn
 
 b3FeaturePair b3FlipPair( b3FeaturePair pair );
 
+// A sphere against a mesh triangle that knows its edges (b3MeshEdgeFlags): touching it on a flat edge, or on a vertex whose
+// two edges are both flat, the sphere is pushed along the triangle's face normal, not out from the edge. A surface cut into
+// several meshes (terrain chunks, their open edges flagged flat by b3MeshDef.flatOpenEdges) carries on level across the
+// cut, and the edge normal there kicked a rolling wheel up and back at every seam.
+void b3CollideTriangleAndSphereWithFlags( b3LocalManifold* manifold, int capacity, const b3Vec3* triangleA, const b3Sphere* sphereB,
+										  int triangleFlags );
+
 int b3ClipPolygon( b3ClipVertex* out, b3ClipVertex* polygon, int count, b3Plane clipPlane, int edge, b3Plane refPlane );
 
 b3AxisQuery b3ComputeSeparatingAxis( const b3HullData* hullA, const b3HullData* hullB, b3Transform xfB, bool earlyReturn );

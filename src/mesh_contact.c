@@ -758,7 +758,7 @@ bool b3ComputeMeshManifolds( b3World* world, int workerIndex, b3Contact* contact
 				break;
 
 			case b3_sphereShape:
-				b3CollideTriangleAndSphere( manifold, pointCapacity, vertices, &shapeB->sphere );
+				b3CollideTriangleAndSphereWithFlags( manifold, pointCapacity, vertices, &shapeB->sphere, triangle.flags );
 				break;
 
 			default:
