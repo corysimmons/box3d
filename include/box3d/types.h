@@ -654,6 +654,7 @@ typedef enum b3JointType
 	b3_wheelJoint,
 	b3_moverJoint,
 	b3_pogoJoint,
+	b3_gearJoint,
 } b3JointType;
 
 /// Base joint definition used by all joint types. The local frames are measured from the
@@ -885,6 +886,24 @@ typedef struct b3ParallelJointDef
 /// Use this to initialize your joint definition
 /// @ingroup parallel_joint
 B3_API b3ParallelJointDef b3DefaultParallelJointDef( void );
+
+/// Gear joint definition (Starsworn's fork). Holds radiusA * spinA + radiusB * spinB = carrier speed, each spin about
+/// its body's local frame z axis: two meshed gears. Torque limited (the teeth strip past it).
+typedef struct b3GearJointDef
+{
+	/// Base joint definition
+	b3JointDef base;
+
+	/// Pitch radius of gear A and gear B (meters)
+	float radiusA;
+	float radiusB;
+
+	/// The most torque the mesh carries at gear A (newton-meters)
+	float maxTorque;
+} b3GearJointDef;
+
+/// Use this to initialize your joint definition
+B3_API b3GearJointDef b3DefaultGearJointDef( void );
 
 /// Prismatic joint definition. Body B may slide along the x-axis in local frame A.
 /// Body B cannot rotate relative to body A. The joint translation is zero when the

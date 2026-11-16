@@ -1226,6 +1226,19 @@ B3_API float b3Joint_GetTorqueThreshold( b3JointId jointId );
 /// @see b3ParallelJointDef for details
 B3_API b3JointId b3CreateParallelJoint( b3WorldId worldId, const b3ParallelJointDef* def );
 
+/// Create a gear joint (Starsworn's fork): two bodies' spins about their frames' z axes held in ratio.
+B3_API b3JointId b3CreateGearJoint( b3WorldId worldId, const b3GearJointDef* def );
+
+/// The gear pair's carrier term: (radiusA + radiusB) x the spin of what both are mounted on, about the gears' axis (rad/s m).
+B3_API void b3GearJoint_SetCarrierSpeed( b3JointId jointId, float speed );
+B3_API float b3GearJoint_GetCarrierSpeed( b3JointId jointId );
+
+/// The most torque the mesh carries at gear A (newton-meters).
+B3_API void b3GearJoint_SetMaxTorque( b3JointId jointId, float torque );
+
+/// The torque the mesh carried last step, at gear A (newton-meters).
+B3_API float b3GearJoint_GetMeshTorque( b3JointId jointId );
+
 /// Set the spring stiffness in Hertz
 B3_API void b3ParallelJoint_SetSpringHertz( b3JointId jointId, float hertz );
 

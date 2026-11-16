@@ -57,6 +57,7 @@ set(BOX3D_SOURCE_FILES
 	parallel_for.c
 	parallel_for.h
 	parallel_joint.c
+	gear_joint.c
 	physics_world.c
 	physics_world.h
 	platform.h

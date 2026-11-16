@@ -44,6 +44,16 @@ b3ParallelJointDef b3DefaultParallelJointDef( void )
 	return def;
 }
 
+b3GearJointDef b3DefaultGearJointDef( void )
+{
+	b3GearJointDef def = { 0 };
+	def.base = b3DefaultJointDef();
+	def.radiusA = 1.0f;
+	def.radiusB = 1.0f;
+	def.maxTorque = FLT_MAX;
+	return def;
+}
+
 b3DistanceJointDef b3DefaultDistanceJointDef( void )
 {
 	b3DistanceJointDef def = { 0 };
@@ -632,6 +642,30 @@ b3JointId b3CreateParallelJoint( b3WorldId worldId, const b3ParallelJointDef* de
 	return jointId;
 }
 
+b3JointId b3CreateGearJoint( b3WorldId worldId, const b3GearJointDef* def )
+{
+	B3_CHECK_JOINT_DEF( def );
+	b3World* world = b3GetUnlockedWorldFromId( worldId );
+	if ( world == NULL )
+	{
+		return (b3JointId){ 0 };
+	}
+
+	B3_ASSERT( b3IsValidFloat( def->radiusA ) && def->radiusA > 0.0f );
+	B3_ASSERT( b3IsValidFloat( def->radiusB ) && def->radiusB > 0.0f );
+	B3_ASSERT( b3IsValidFloat( def->maxTorque ) && def->maxTorque >= 0.0f );
+
+	b3JointPair pair = b3CreateJoint( world, &def->base, b3_gearJoint );
+	b3JointSim* joint = pair.jointSim;
+	joint->gearJoint = (b3GearJoint){ 0 };
+	joint->gearJoint.radiusA = def->radiusA;
+	joint->gearJoint.radiusB = def->radiusB;
+	joint->gearJoint.maxTorque = def->maxTorque;
+
+	b3JointId jointId = { joint->jointId + 1, world->worldId, pair.joint->generation };
+	return jointId;
+}
+
 b3JointId b3CreatePrismaticJoint( b3WorldId worldId, const b3PrismaticJointDef* def )
 {
 	B3_CHECK_JOINT_DEF( def );
@@ -1104,6 +1138,10 @@ void b3GetJointReaction( b3World* world, b3JointSim* sim, float invTimeStep, flo
 
 	switch ( sim->type )
 	{
+		case b3_gearJoint:
+			angularImpulse = b3AbsFloat( sim->gearJoint.impulse * sim->gearJoint.radiusA );
+			break;
+
 		case b3_parallelJoint:
 		{
 			b3ParallelJoint* joint = &sim->parallelJoint;
@@ -1235,6 +1273,7 @@ static b3Vec3 b3GetJointConstraintForce( b3World* world, b3Joint* joint )
 	switch ( joint->type )
 	{
 		case b3_parallelJoint:
+		case b3_gearJoint:
 			return b3Vec3_zero;
 
 		case b3_distanceJoint:
@@ -1281,6 +1320,9 @@ static b3Vec3 b3GetJointConstraintTorque( b3World* world, b3Joint* joint )
 	{
 		case b3_parallelJoint:
 			return b3GetParallelJointTorque( world, base );
+
+		case b3_gearJoint:
+			return b3GetGearJointTorque( world, base );
 
 		case b3_distanceJoint:
 			return b3Vec3_zero;
@@ -1346,6 +1388,7 @@ float b3Joint_GetLinearSeparation( b3JointId jointId )
 	switch ( joint->type )
 	{
 		case b3_parallelJoint:
+		case b3_gearJoint:
 			return 0.0f;
 
 		case b3_distanceJoint:
@@ -1483,6 +1526,7 @@ float b3Joint_GetAngularSeparation( b3JointId jointId )
 		}
 
 		case b3_distanceJoint:
+		case b3_gearJoint:
 			return 0.0f;
 
 		case b3_motorJoint:
@@ -1615,6 +1659,10 @@ void b3PrepareJoint( b3JointSim* joint, b3StepContext* context )
 			b3PrepareParallelJoint( joint, context );
 			break;
 
+		case b3_gearJoint:
+			b3PrepareGearJoint( joint, context );
+			break;
+
 		case b3_distanceJoint:
 			b3PrepareDistanceJoint( joint, context );
 			break;
@@ -1665,6 +1713,10 @@ void b3WarmStartJoint( b3JointSim* joint, b3StepContext* context )
 	{
 		case b3_parallelJoint:
 			b3WarmStartParallelJoint( joint, context );
+			break;
+
+		case b3_gearJoint:
+			b3WarmStartGearJoint( joint, context );
 			break;
 
 		case b3_distanceJoint:
@@ -1719,6 +1771,10 @@ void b3SolveJoint( b3JointSim* joint, b3StepContext* context, bool useBias )
 	{
 		case b3_parallelJoint:
 			b3SolveParallelJoint( joint, context );
+			break;
+
+		case b3_gearJoint:
+			b3SolveGearJoint( joint, context );
 			break;
 
 		case b3_distanceJoint:
@@ -1840,6 +1896,10 @@ void b3DrawJoint( b3DebugDraw* draw, b3World* world, b3Joint* joint )
 	{
 		case b3_parallelJoint:
 			b3DrawParallelJoint( draw, jointSim, transformA, transformB, scale );
+			break;
+
+		case b3_gearJoint:
+			b3DrawGearJoint( draw, jointSim, transformA, transformB, scale );
 			break;
 
 		case b3_distanceJoint:
